@@ -1,0 +1,3 @@
+# Ignore all MetaWear-generated files
+.metawear/
+__pycache__/
