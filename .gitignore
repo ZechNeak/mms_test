@@ -1,3 +1,7 @@
 # Ignore all MetaWear-generated files
 .metawear/
+
+# Ignore all PyInstaller files except for the binary
+build/
+
 __pycache__/

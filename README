@@ -1,0 +1,191 @@
+
+mms_plugin is designed for Mbientlab's MetaMotionS (MMS) board.
+
+It is a standalone Linux-compatible binary created with PyInstaller so it should be 
+able to be executed without the required MetaWear libraries being locally present.
+
+    Usage: mms_plugin (mac_address) [acc_odr] [acc_range] 
+                      [gyro_odr] [gyro_range] [mag_preset]
+
+An explanation of the different options are further down the README.
+
+If only the mac_address is specified, then the following will be implicitly run with
+default values:
+
+           mms_plugin (mac_address) 50 4 50 1000 regular
+
+
+Ensure the MMS is woken up from its power-saving state by either pressing the button, 
+or plugging in a microUSB charger. Otherwise, connecting to it via Bluetooth will not
+work.
+
+Running either of the above commands will wirelessly connect to the specified MMS board
+via Bluetooth, and start up its acceleromter, gyroscope, and magnetometer. The readings
+from all three measurement units will be displayed in the terminal, which is indicated
+by a blinking green LED.
+
+Pressing the button, if there's no latency, will stop the readings. A pulsing red LED 
+will indicate this. Pressing the button again will immediately resume the readings.
+
+To stop the readings and disconnect from the MMS, simply perform a KeyboardInterrupt 
+with CTRL+C. Doing so will also prompt the MMS to garbage collect and enter back into
+its power-saving mode.
+
+==============
+
+To rebuild mms_plugin with Pyinstaller, assuming both the MetaWear and Warble packages
+have been pip installed already, run:
+
+    pyinstaller --clean --distpath ./ mms_plugin.spec
+
+The .spec file is already configured to bundle all required libraries into the single
+executable binary file, so the option --onefile is not necessary.
+
+==============
+
+
+The MMS uses the Bosch BMI270 IMU for its accelerometer and gyroscope, and the Bosch 
+BMM150 for its magnetometer.
+
+Their technical data and datasheets can be found here:
+
+    https://mbientlab.com/tutorials/MetaMotionS.html
+    https://www.bosch-sensortec.com/products/motion-sensors/imus/bmi270/#documents
+    https://www.bosch-sensortec.com/products/motion-sensors/magnetometers-bmm150/
+
+
+
+The repository for the official SDK, which includes example code, is found here:
+
+    https://github.com/mbientlab/MetaWear-SDK-Python
+
+
+
+Their MetaWear Python package for the purpose of module imports can be downloaded 
+by running:
+
+    sudo pip3 install metawear
+
+Note that sudo may be necessary to give metawear access to OS-level Bluetooth 
+tools.
+
+If Warble fails to be installed, consult the documentation found here:
+
+    https://github.com/mbientlab/Warble
+
+
+
+Extensive documentation detailing how to use their Python APIs can be found here:
+
+    https://mbientlab.com/tutorials/PyLinux.html
+
+The site this page resides in also includes documentation for much more, including
+APIs for other languages and operating systems.
+
+Note that the Python APIs are essentially wrappers around their C++ library, which
+has its own reference site here:
+
+    https://mbientlab.com/documents/metawear/cpp/latest/index.html
+
+Many function names found here are identical to what can be used in Python.
+
+
+==============
+
+
+The technical data and datasheets for the MMS's accelerometer, gyroscope, and magnetometer
+are provided at the top of this README. The following however is a quick summary of how
+they may be configured.
+
+Firstly, the format to run the executable binary with the required options is below:
+
+    Usage: mms_plugin (mac_address) [acc_odr] [acc_range] 
+                      [gyro_odr] [gyro_range] [mag_preset]
+
+
+Secondly, below is a short glossary of technical terms, as well as all the available
+values to input for the above options:
+
+(All values can also be found in metawear's cbindings.py)
+
+MAC Address: The unique identifier for the MMS. This can found using the MetaWear phone 
+             app, or running scan_connect.py from Mbientlab's Python examples. This
+             identifier is required to connect to the device via Bluetooth.
+
+             Format --> nn:nn:nn:nn:(TODO: Explain the binary's output, button functionality, and teardown process.)
+
+
+ODR: Output Data Rate (AKA sampling rate) 
+     (Unit: Hertz or Hz)
+
+     Valid [acc_odr] values: 
+
+        0.78125
+        1.5625
+        3.125
+        6.25
+        12.5
+        25
+        50
+        100
+        200
+        400
+        800
+        1600
+
+     Valid [gyro_odr] values:
+
+        25
+        50
+        100
+        200
+        400
+        800
+        1600
+        3200
+
+
+Range: The values an accelerometer or gyroscope can be set to measure.
+
+        Ex: Accelerometer --> -4g to +4g 
+            (Unit: gravitational acceleration)
+
+        Ex: Gyroscope --> -1000dps to +1000dps 
+            (Unit: degrees-per-second)
+
+
+        Valid [acc_range] values: 
+
+            2
+            4
+            8
+            16
+
+        Valid [gyro_range] values:
+
+            125
+            250
+            500
+            1000
+            2000
+
+
+Preset: The magnetometer provides 4 different powered presets recommended by Bosch.
+        Each preset has a set ODR, an average current, and a level of noise.
+
+        Valid [mag_preset] values:
+
+            low
+            regular
+            enhanced
+            high
+
+        LOW_POWER, REGULAR, and ENHANCED_REGULAR have a set ODR of 10Hz, while 
+        HIGH_ACCURACY has a set ODR of 20Hz.
+        
+        Please consult the BMM150 datasheet for further details on these presets.
+        Alternatively, a quick reference chart can be found here:
+
+        https://mbientlab.com/documents/metawear/cpp/latest/magnetometer__bmm150_8h.html
+
+

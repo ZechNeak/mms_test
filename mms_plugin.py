@@ -1,22 +1,28 @@
 '''
+Usage: python3 mms_plugin.py (mac_address) [acc_odr] [acc_range] [gyro_odr] 
+                             [gyro_range] [mag_preset]
 
-Usage: python3 mms_plugin.py [mac_address]
-        
         The mac_address must always be specified. If the mac_address for the MMS
         device is unknown, then one can download the MetaWear phone app and find
-        out that way.
-
-        Alternatively, the mac_address can be found by running 
+        out that way. Alternatively, the mac_address can be found by running 
         examples/scan_connect.py from MetaWear-SDK-Python.
+
+        If none of the other options are specified, i.e.
+
+            python3 mms_plugin.py (mac_address)
+
+        is called, then the following default will be implicitly run:
+
+            python3 mms_plugin.py (mac_address) 50 4 50 1000 regular
+
             
 Description:
-
     The purpose of this code is to be a proof-of-concept for possibly using a wireless
-    (Bluetooth) IMU to aid in implementing visual-inerial SLAM on an HMD.
-    The hardware this code is designed for is Mbientlab's MetaMotionS (MMS) board. 
-    
-    As of this writing, the MMS uses a BM270 for its accelerometer and gyroscope, and 
-    a BMM150 for its magnetometer.
+    (Bluetooth) IMU to aid in implementing visual-inertial (VI) SLAM on an HMD.
+
+    The featured hardware is Mbientlab's MetaMotionS (MMS) board. As of this writing, 
+    the MMS uses a BM270 for its accelerometer and gyroscope, and a BMM150 
+    for its magnetometer.
 
     The code is derived from examples/stream_acc_gyro_bmi270.py, examples/stream_mag.py,
     and examples/full_reset.py from MetaWear-SDK-Python.
@@ -32,8 +38,11 @@ from threading import Event
 import platform
 import sys
 
+import arg_maps
+
 if sys.version_info[0] == 2:
     range = xrange
+
 
 class State:
     def __init__(self, device):
@@ -43,9 +52,8 @@ class State:
         self.gyro_samples = 0
         self.mag_samples = 0
 
-        # When button is True (pressed), toggle sampling on and off
+        # When button is pressed, toggle sampling on and off
         self.button = False
-        self.prev_pressed = False
         self.is_sampling = False
 
         self.accCallback = FnVoid_VoidP_DataP(self.acc_data_handler)
@@ -124,9 +132,53 @@ class State:
         while True:
             sleep(0.25)
 
-print("\n[NOTE] According to Mbientlab, the src/blestatemachine.cc error can be ignored.\n")
+
+acc_odr, acc_range = 0, 0
+gyro_odr, gyro_range = 0, 0
+mag_preset = ""
+args = len(sys.argv) - 1
+
+# Only MAC address is specified by user; default everything else
+if args == 1:
+    acc_odr = arg_maps.acc_rates[50]
+    acc_range = arg_maps.acc_ranges[4]
+    gyro_odr = arg_maps.gyro_rates[50]
+    gyro_range = arg_maps.gyro_ranges[1000]
+    mag_preset = arg_maps.mag_presets["regular"]
+
+# ODR, ranges, and magnetometer preset also specified by user
+elif args == 6:
+    if (float(sys.argv[2]) not in arg_maps.acc_rates) or \
+       (int(sys.argv[3]) not in arg_maps.acc_ranges) or \
+       (int(sys.argv[4]) not in arg_maps.gyro_rates) or \
+       (int(sys.argv[5]) not in arg_maps.gyro_ranges) or \
+       (sys.argv[6] not in arg_maps.mag_presets):
+        
+        print("\nPlease see README for valid values to enter. \
+              \nOr, to run with default values, just specify the mac_address.\n")
+        sys.exit(0)
+
+    else:
+        acc_odr = arg_maps.acc_rates[float(sys.argv[2])]
+        acc_range = arg_maps.acc_ranges[int(sys.argv[3])]
+        gyro_odr = arg_maps.gyro_rates[int(sys.argv[4])]
+        gyro_range = arg_maps.gyro_ranges[int(sys.argv[5])]
+        mag_preset = arg_maps.mag_presets[sys.argv[6]]
+
+else:
+    print("usage: python3 mms_plugin.py (mac_address) [acc_odr] [acc_range] [gyro_odr] [gyro_range] [mag_preset]\
+          \n\n    Please enter a value for every above option. See README for valid values and explanation.\
+          \n    If only the mac_address is specified, the other options will use their default values: \n\
+          \n    acc_odr = 50 \
+          \n    acc_range = 4 \
+          \n    gyro_odr = 50 \
+          \n    gyro_range = 1000 \
+          \n    mag_preset = regular \n")                               
+    sys.exit(0)
 
 try:
+    print("\n[NOTE] According to Mbientlab, the src/blestatemachine.cc error can be ignored.\n")
+
     # Connect to MMS
     d = MetaWear(sys.argv[1])
     d.connect()
@@ -145,19 +197,18 @@ try:
     libmetawear.mbl_mw_led_play(state.device.board)
 
     # Setup accelerometer
-    libmetawear.mbl_mw_acc_bmi270_set_odr(state.device.board, AccBmi270Odr._100Hz)
-    libmetawear.mbl_mw_acc_bosch_set_range(state.device.board, AccBoschRange._4G)
+    libmetawear.mbl_mw_acc_bmi270_set_odr(state.device.board, acc_odr)
+    libmetawear.mbl_mw_acc_bosch_set_range(state.device.board, acc_range)
     libmetawear.mbl_mw_acc_write_acceleration_config(state.device.board)
 
     # Setup gyroscope
-    libmetawear.mbl_mw_gyro_bmi270_set_odr(state.device.board, GyroBoschOdr._100Hz)
-    libmetawear.mbl_mw_gyro_bmi270_set_range(state.device.board, GyroBoschRange._1000dps)
+    libmetawear.mbl_mw_gyro_bmi270_set_odr(state.device.board, gyro_odr)
+    libmetawear.mbl_mw_gyro_bmi270_set_range(state.device.board, gyro_range)
     libmetawear.mbl_mw_gyro_bmi270_write_config(state.device.board)
 
     # Setup magnetometer 
-    # (ODR for HIGH_ACCURACY preset is 20Hz; 10Hz for every other option)
     libmetawear.mbl_mw_mag_bmm150_stop(state.device.board)
-    libmetawear.mbl_mw_mag_bmm150_set_preset(state.device.board, MagBmm150Preset.HIGH_ACCURACY)
+    libmetawear.mbl_mw_mag_bmm150_set_preset(state.device.board, mag_preset)
 
     # Prepare to read from accelerometer, gyroscope, and magnetometer
     acc = libmetawear.mbl_mw_acc_get_acceleration_data_signal(state.device.board)
@@ -183,7 +234,7 @@ except KeyboardInterrupt:
     state.stop_sampling()
 
 except NameError:
-    print("[NameError] Ignoring variables not yet defined before KeyboardInterrupt...\n")
+    print("[NameError] Ignoring variables not yet defined...\n")
 
 finally:
 
@@ -194,7 +245,7 @@ finally:
         libmetawear.mbl_mw_datasignal_unsubscribe(but)
 
     except NameError:
-        print("[NameError] Ignoring variables not yet defined before KeyboardInterrupt...\n")
+        print("[NameError] Ignoring variables not yet defined...\n")
 
     finally:
         
